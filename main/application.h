@@ -124,7 +124,7 @@ public:
 
 private:
     Application();
-    ~Application();
+    ~Application(); 
 
     std::mutex mutex_;
     std::deque<std::function<void()>> main_tasks_;
