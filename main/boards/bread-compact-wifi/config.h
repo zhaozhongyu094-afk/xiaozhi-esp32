@@ -2,6 +2,7 @@
 #define _BOARD_CONFIG_H_
 
 #include <driver/gpio.h>
+#include <driver/ledc.h>
 
 #define AUDIO_INPUT_SAMPLE_RATE  16000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
@@ -53,7 +54,10 @@
 #define DISPLAY_MIRROR_Y true
 
 
-// A MCP Test: Control a lamp
-#define LAMP_GPIO GPIO_NUM_18
+// AI-controlled heater output
+#define HEATER_GPIO        GPIO_NUM_18
+#define HEATER_PWM_FREQ_HZ 1000
+#define HEATER_PWM_TIMER   LEDC_TIMER_2
+#define HEATER_PWM_CHANNEL LEDC_CHANNEL_1
 
 #endif // _BOARD_CONFIG_H_
