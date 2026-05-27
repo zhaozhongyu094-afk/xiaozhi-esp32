@@ -1,6 +1,6 @@
 # 加热器目标温度控制
 
-`bread-compact-wifi` 板型使用 `GPIO18` 输出加热器 PWM，并使用 NTC 接到 ADC0 读取当前温度。AI 通过 MCP 设置目标温度，ESP32 本地 PID 根据 NTC 温度反馈计算 PWM 占空比。
+`bread-compact-wifi` 板型使用 `GPIO18` 输出加热器 PWM，并使用 NTC 接到 ADC0 读取当前温度。温度采样在 ESP32 本地后台持续进行，AI 通过 MCP 设置目标温度或读取缓存状态；加热开启后，ESP32 本地 PID 根据 NTC 温度反馈持续计算 PWM 占空比。
 
 板级配置在 `main/boards/bread-compact-wifi/config.h`：
 

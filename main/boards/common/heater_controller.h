@@ -16,6 +16,7 @@ class HeaterController {
 private:
     static constexpr const char* TAG = "HeaterController";
     static constexpr uint32_t kMaxDuty = 8191;
+    static constexpr int64_t kTemperaturePeriodUs = 500000;
     static constexpr int64_t kPidPeriodUs = 1000000;
 
     gpio_num_t gpio_num_;
@@ -27,6 +28,7 @@ private:
     float kp_;
     float ki_;
     float kd_;
+    esp_timer_handle_t temperature_timer_ = nullptr;
     esp_timer_handle_t pid_timer_ = nullptr;
 
     int target_temperature_c_ = 0;
@@ -78,9 +80,11 @@ private:
         previous_error_ = 0.0f;
     }
 
-    void UpdatePid() {
+    void UpdateTemperature() {
         current_temperature_c_ = temperature_sensor_.ReadCelsius();
+    }
 
+    void UpdatePid() {
         if (!enabled_ || target_temperature_c_ <= 0) {
             ApplyPower(0);
             return;
@@ -109,7 +113,6 @@ private:
 
         if (!enabled_) {
             ApplyPower(0);
-            current_temperature_c_ = temperature_sensor_.ReadCelsius();
             return;
         }
 
@@ -172,13 +175,24 @@ public:
         ledc_channel.timer_sel = timer_num_;
         ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
-        esp_timer_create_args_t timer_config = {};
-        timer_config.callback = [](void* arg) {
+        UpdateTemperature();
+
+        esp_timer_create_args_t temperature_timer_config = {};
+        temperature_timer_config.callback = [](void* arg) {
+            static_cast<HeaterController*>(arg)->UpdateTemperature();
+        };
+        temperature_timer_config.arg = this;
+        temperature_timer_config.name = "heater_ntc";
+        ESP_ERROR_CHECK(esp_timer_create(&temperature_timer_config, &temperature_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(temperature_timer_, kTemperaturePeriodUs));
+
+        esp_timer_create_args_t pid_timer_config = {};
+        pid_timer_config.callback = [](void* arg) {
             static_cast<HeaterController*>(arg)->UpdatePid();
         };
-        timer_config.arg = this;
-        timer_config.name = "heater_pid";
-        ESP_ERROR_CHECK(esp_timer_create(&timer_config, &pid_timer_));
+        pid_timer_config.arg = this;
+        pid_timer_config.name = "heater_pid";
+        ESP_ERROR_CHECK(esp_timer_create(&pid_timer_config, &pid_timer_));
         ESP_ERROR_CHECK(esp_timer_start_periodic(pid_timer_, kPidPeriodUs));
 
         auto& mcp_server = McpServer::GetInstance();
@@ -186,7 +200,6 @@ public:
             "Get the heater thermostat state, including target temperature, current NTC temperature, PID output power, and PWM frequency.",
             PropertyList(),
             [this](const PropertyList& properties) -> ReturnValue {
-                current_temperature_c_ = temperature_sensor_.ReadCelsius();
                 return BuildStateJson();
             });
 
@@ -205,6 +218,10 @@ public:
         if (pid_timer_ != nullptr) {
             esp_timer_stop(pid_timer_);
             esp_timer_delete(pid_timer_);
+        }
+        if (temperature_timer_ != nullptr) {
+            esp_timer_stop(temperature_timer_);
+            esp_timer_delete(temperature_timer_);
         }
     }
 };
