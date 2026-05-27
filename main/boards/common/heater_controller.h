@@ -16,8 +16,8 @@ class HeaterController {
 private:
     static constexpr const char* TAG = "HeaterController";
     static constexpr uint32_t kMaxDuty = 8191;
-    static constexpr int64_t kTemperaturePeriodUs = 500000;
-    static constexpr int64_t kPidPeriodUs = 1000000;
+    static constexpr int64_t kControlPeriodUs = 100000;
+    static constexpr float kControlPeriodSeconds = static_cast<float>(kControlPeriodUs) / 1000000.0f;
 
     gpio_num_t gpio_num_;
     ledc_timer_t timer_num_;
@@ -28,8 +28,7 @@ private:
     float kp_;
     float ki_;
     float kd_;
-    esp_timer_handle_t temperature_timer_ = nullptr;
-    esp_timer_handle_t pid_timer_ = nullptr;
+    esp_timer_handle_t control_timer_ = nullptr;
 
     int target_temperature_c_ = 0;
     float current_temperature_c_ = NAN;
@@ -80,11 +79,9 @@ private:
         previous_error_ = 0.0f;
     }
 
-    void UpdateTemperature() {
+    void UpdateControl() {
         current_temperature_c_ = temperature_sensor_.ReadCelsius();
-    }
 
-    void UpdatePid() {
         if (!enabled_ || target_temperature_c_ <= 0) {
             ApplyPower(0);
             return;
@@ -97,8 +94,8 @@ private:
         }
 
         float error = static_cast<float>(target_temperature_c_) - current_temperature_c_;
-        pid_integral_ = ClampFloat(pid_integral_ + error, -100.0f, 100.0f);
-        float derivative = error - previous_error_;
+        pid_integral_ = ClampFloat(pid_integral_ + error * kControlPeriodSeconds, -100.0f, 100.0f);
+        float derivative = (error - previous_error_) / kControlPeriodSeconds;
         previous_error_ = error;
 
         float pid_output = kp_ * error + ki_ * pid_integral_ + kd_ * derivative;
@@ -113,10 +110,7 @@ private:
 
         if (!enabled_) {
             ApplyPower(0);
-            return;
         }
-
-        UpdatePid();
     }
 
     cJSON* BuildStateJson() const {
@@ -175,25 +169,16 @@ public:
         ledc_channel.timer_sel = timer_num_;
         ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
-        UpdateTemperature();
+        UpdateControl();
 
-        esp_timer_create_args_t temperature_timer_config = {};
-        temperature_timer_config.callback = [](void* arg) {
-            static_cast<HeaterController*>(arg)->UpdateTemperature();
+        esp_timer_create_args_t control_timer_config = {};
+        control_timer_config.callback = [](void* arg) {
+            static_cast<HeaterController*>(arg)->UpdateControl();
         };
-        temperature_timer_config.arg = this;
-        temperature_timer_config.name = "heater_ntc";
-        ESP_ERROR_CHECK(esp_timer_create(&temperature_timer_config, &temperature_timer_));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(temperature_timer_, kTemperaturePeriodUs));
-
-        esp_timer_create_args_t pid_timer_config = {};
-        pid_timer_config.callback = [](void* arg) {
-            static_cast<HeaterController*>(arg)->UpdatePid();
-        };
-        pid_timer_config.arg = this;
-        pid_timer_config.name = "heater_pid";
-        ESP_ERROR_CHECK(esp_timer_create(&pid_timer_config, &pid_timer_));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(pid_timer_, kPidPeriodUs));
+        control_timer_config.arg = this;
+        control_timer_config.name = "heater_control";
+        ESP_ERROR_CHECK(esp_timer_create(&control_timer_config, &control_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(control_timer_, kControlPeriodUs));
 
         auto& mcp_server = McpServer::GetInstance();
         mcp_server.AddTool("self.heater.get_state",
@@ -215,13 +200,9 @@ public:
     }
 
     ~HeaterController() {
-        if (pid_timer_ != nullptr) {
-            esp_timer_stop(pid_timer_);
-            esp_timer_delete(pid_timer_);
-        }
-        if (temperature_timer_ != nullptr) {
-            esp_timer_stop(temperature_timer_);
-            esp_timer_delete(temperature_timer_);
+        if (control_timer_ != nullptr) {
+            esp_timer_stop(control_timer_);
+            esp_timer_delete(control_timer_);
         }
     }
 };
