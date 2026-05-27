@@ -109,10 +109,10 @@ private:
             }
             app.ToggleChatState();
         });
-        touch_button_.OnPressDown([this]() {
+        touch_button_.OnPressDown([]() {
             Application::GetInstance().StartListening();
         });
-        touch_button_.OnPressUp([this]() {
+        touch_button_.OnPressUp([]() {
             Application::GetInstance().StopListening();
         });
 
@@ -149,7 +149,20 @@ private:
 
     // 物联网初始化，逐步迁移到 MCP 协议
     void InitializeTools() {
-        static HeaterController heater(HEATER_GPIO, HEATER_PWM_FREQ_HZ, HEATER_PWM_TIMER, HEATER_PWM_CHANNEL);
+        static HeaterController heater(HEATER_GPIO,
+            HEATER_PWM_FREQ_HZ,
+            HEATER_PWM_TIMER,
+            HEATER_PWM_CHANNEL,
+            HEATER_TEMP_ADC_UNIT,
+            HEATER_TEMP_ADC_CHANNEL,
+            HEATER_TEMP_SERIES_RESISTOR_OHM,
+            HEATER_TEMP_NOMINAL_RESISTOR_OHM,
+            HEATER_TEMP_NOMINAL_TEMPERATURE_C,
+            HEATER_TEMP_BETA,
+            HEATER_MAX_TARGET_TEMPERATURE_C,
+            HEATER_PID_KP,
+            HEATER_PID_KI,
+            HEATER_PID_KD);
     }
 
 public:
