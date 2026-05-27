@@ -67,7 +67,7 @@
 #define HEATER_NTC_SERIES_RESISTOR_OHM   10000.0f
 #define HEATER_NTC_NOMINAL_RESISTOR_OHM  10000.0f
 #define HEATER_NTC_NOMINAL_TEMPERATURE_C 25.0f
-#define HEATER_NTC_BETA                  3950.0f
+#define HEATER_NTC_BETA                  3435.0f
 
 #define HEATER_MAX_TARGET_TEMPERATURE_C  120
 #define HEATER_PID_KP                    8.0f
