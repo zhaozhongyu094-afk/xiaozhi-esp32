@@ -7,6 +7,7 @@
 #include "config.h"
 #include "mcp_server.h"
 #include "heater_controller.h"
+#include "ntc_temperature_sensor.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 
@@ -109,10 +110,10 @@ private:
             }
             app.ToggleChatState();
         });
-        touch_button_.OnPressDown([this]() {
+        touch_button_.OnPressDown([]() {
             Application::GetInstance().StartListening();
         });
-        touch_button_.OnPressUp([this]() {
+        touch_button_.OnPressUp([]() {
             Application::GetInstance().StopListening();
         });
 
@@ -149,7 +150,22 @@ private:
 
     // 物联网初始化，逐步迁移到 MCP 协议
     void InitializeTools() {
-        static HeaterController heater(HEATER_GPIO, HEATER_PWM_FREQ_HZ, HEATER_PWM_TIMER, HEATER_PWM_CHANNEL);
+        static NtcTemperatureSensor heater_ntc(HEATER_NTC_ADC_UNIT,
+            HEATER_NTC_ADC_CHANNEL,
+            HEATER_NTC_SERIES_RESISTOR_OHM,
+            HEATER_NTC_NOMINAL_RESISTOR_OHM,
+            HEATER_NTC_NOMINAL_TEMPERATURE_C,
+            HEATER_NTC_BETA);
+
+        static HeaterController heater(HEATER_GPIO,
+            HEATER_PWM_FREQ_HZ,
+            HEATER_PWM_TIMER,
+            HEATER_PWM_CHANNEL,
+            heater_ntc,
+            HEATER_MAX_TARGET_TEMPERATURE_C,
+            HEATER_PID_KP,
+            HEATER_PID_KI,
+            HEATER_PID_KD);
     }
 
 public:

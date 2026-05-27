@@ -3,6 +3,7 @@
 
 #include <driver/gpio.h>
 #include <driver/ledc.h>
+#include <esp_adc/adc_oneshot.h>
 
 #define AUDIO_INPUT_SAMPLE_RATE  16000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
@@ -54,10 +55,23 @@
 #define DISPLAY_MIRROR_Y true
 
 
-// AI-controlled heater output
+// Heater thermostat output
 #define HEATER_GPIO        GPIO_NUM_18
 #define HEATER_PWM_FREQ_HZ 1000
 #define HEATER_PWM_TIMER   LEDC_TIMER_2
 #define HEATER_PWM_CHANNEL LEDC_CHANNEL_1
+
+// NTC temperature sensor on ADC0. Wiring: 3V3 -> series resistor -> ADC0 -> NTC -> GND.
+#define HEATER_NTC_ADC_UNIT              ADC_UNIT_1
+#define HEATER_NTC_ADC_CHANNEL           ADC_CHANNEL_0
+#define HEATER_NTC_SERIES_RESISTOR_OHM   10000.0f
+#define HEATER_NTC_NOMINAL_RESISTOR_OHM  10000.0f
+#define HEATER_NTC_NOMINAL_TEMPERATURE_C 25.0f
+#define HEATER_NTC_BETA                  3950.0f
+
+#define HEATER_MAX_TARGET_TEMPERATURE_C  120
+#define HEATER_PID_KP                    8.0f
+#define HEATER_PID_KI                    0.25f
+#define HEATER_PID_KD                    2.0f
 
 #endif // _BOARD_CONFIG_H_

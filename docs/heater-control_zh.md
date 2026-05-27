@@ -1,6 +1,6 @@
-# 加热器 GPIO/PWM 控制
+# 加热器目标温度控制
 
-当前 `bread-compact-wifi` 板型默认把 `GPIO18` 作为加热器输出，并通过 MCP 工具暴露给 AI。用户说“打开加热器”“把加热器功率调到 30%”“关闭加热器”时，云端 AI 会把自然语言转换成设备端工具调用。
+`bread-compact-wifi` 板型使用 `GPIO18` 输出加热器 PWM，并使用 NTC 接到 ADC0 读取当前温度。AI 通过 MCP 设置目标温度，ESP32 本地 PID 根据 NTC 温度反馈计算 PWM 占空比。
 
 板级配置在 `main/boards/bread-compact-wifi/config.h`：
 
@@ -9,46 +9,56 @@
 #define HEATER_PWM_FREQ_HZ 1000
 #define HEATER_PWM_TIMER   LEDC_TIMER_2
 #define HEATER_PWM_CHANNEL LEDC_CHANNEL_1
+
+// NTC temperature sensor on ADC0. Wiring: 3V3 -> series resistor -> ADC0 -> NTC -> GND.
+#define HEATER_NTC_ADC_UNIT              ADC_UNIT_1
+#define HEATER_NTC_ADC_CHANNEL           ADC_CHANNEL_0
+#define HEATER_NTC_SERIES_RESISTOR_OHM   10000.0f
+#define HEATER_NTC_NOMINAL_RESISTOR_OHM  10000.0f
+#define HEATER_NTC_NOMINAL_TEMPERATURE_C 25.0f
+#define HEATER_NTC_BETA                  3950.0f
+
+#define HEATER_MAX_TARGET_TEMPERATURE_C  120
+#define HEATER_PID_KP                    8.0f
+#define HEATER_PID_KI                    0.25f
+#define HEATER_PID_KD                    2.0f
 ```
 
-已注册工具：
+已注册 MCP 工具：
 
-- `self.heater.get_state`：读取加热器 GPIO、开关状态、PWM 功率百分比和频率
-- `self.heater.turn_on`：GPIO18 输出高电平，相当于 100% PWM
-- `self.heater.turn_off`：GPIO18 输出低电平，相当于 0% PWM
-- `self.heater.set_level`：直接设置 GPIO 逻辑电平，`level` 为 `0` 或 `1`
-- `self.heater.set_power`：输出 PWM，`power` 为 `0` 到 `100`
+- `self.heater.get_state`：读取目标温度、NTC 当前温度、PID 输出功率和 PWM 频率
+- `self.heater.set_target_temperature`：设置目标温度，参数 `target_temperature_c` 范围为 `0` 到 `HEATER_MAX_TARGET_TEMPERATURE_C`，设为 `0` 表示关闭加热
 
-示例：设置 30% PWM 功率。
+示例：设置目标温度为 60 摄氏度。
 
 ```json
 {
   "jsonrpc": "2.0",
   "method": "tools/call",
   "params": {
-    "name": "self.heater.set_power",
+    "name": "self.heater.set_target_temperature",
     "arguments": {
-      "power": 30
+      "target_temperature_c": 60
     }
   },
   "id": 1
 }
 ```
 
-示例：直接拉高 GPIO18。
+示例：关闭加热。
 
 ```json
 {
   "jsonrpc": "2.0",
   "method": "tools/call",
   "params": {
-    "name": "self.heater.set_level",
+    "name": "self.heater.set_target_temperature",
     "arguments": {
-      "level": 1
+      "target_temperature_c": 0
     }
   },
   "id": 2
 }
 ```
 
-注意：加热器属于高风险外设，GPIO18 应通过合适的 MOSFET、继电器或固态继电器驱动负载，不要用 ESP32 引脚直接带加热器。
+注意：加热器属于高风险外设，`GPIO18` 应通过合适的 MOSFET、继电器或固态继电器驱动负载，不要用 ESP32 引脚直接带加热器。首次上电建议限流验证 NTC 接线、温度读数方向和 PID 参数。
